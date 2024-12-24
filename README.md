@@ -7,35 +7,34 @@ This project implements a parallelized genetic algorithm to solve decyphering pr
 - [Installation](#installation)
 - [Project Structure](#project-structure)
 
-
-
 ## Installation
 
 1. Clone the repository:
-    ```sh
-    git clone https://github.com/yourusername/genetic-algorithm-project.git
-    ```
+   ```sh
+   git clone https://github.com/yourusername/genetic-algorithm-project.git
+   ```
 2. Navigate to the project directory:
-    ```sh
-    cd genetic-algorithm-project
-    ```
+   ```sh
+   cd genetic-algorithm-project
+   ```
 3. Compile the project using a C++ compiler:
-    ```sh
-    g++ -o genetic_algorithm main.cpp NonParallel.cpp -std=c++11
-    ```
+   ```sh
+   g++ -o genetic_algorithm main.cpp NonParallel.cpp -std=c++11
+   ```
 
+4. option: you can use openml to compile the project
+   ```sh
+   g++ -o genetic_algorithm  Parallel.cpp -std=c++11 -fopenmp
+   ```
 
-
-
-
-## Project Structure 
+## Project Structure
 
 NonParallel.cpp: Contains the implementation of the genetic algorithm, including selection, crossover, and mutation functions in a non parallelised manner (vanilla version)
 Parallel.cpp: Contains the code for parallelized implementation of the genetic algorithm, including selection, crossover, and mutation functions using OPENMP
 
 ![image](output/comparison_graph.jpeg)
- ### serialized/parallelized perfomance comparison
 
+### serialized/parallelized perfomance comparison
 
 ## Aspects to Parallelize:
 
@@ -58,8 +57,3 @@ different individuals simultaneously.
 Dividing overall computation into independent tasks.
 Assigning different processors to different tasks require proper
 coordination and synchronization
-
-
-
-
-
