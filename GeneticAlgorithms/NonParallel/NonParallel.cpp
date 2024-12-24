@@ -7,8 +7,7 @@
 #include <time.h>
 #include <map>
 #include <algorithm>
-#include "../../../../../../../../usr/include/c++/11/bits/algorithmfwd.h"
-#include <ctime> 
+#include <omp.h>
 
 using namespace std;
 
@@ -132,8 +131,16 @@ const map<string, long double> countNgrams(const string& text, map<string, long 
 /// <param name="pop">Array of Individuals</param>
 void initPopulation(Individual population[])
 {
-    for (int i = 0; i < POP_SIZE; i ++)
-        random_shuffle(begin(population[i].genes), end(population[i].genes) - 1);
+    // Create a random number engine
+    std::random_device rd;
+    std::mt19937 g(rd()); // Mersenne Twister engine
+
+    for (int i = 0; i < POP_SIZE; ++i) {
+        // Shuffle all genes except the last one
+        if (population[i].genes.size() > 1) {
+           std::shuffle(population[i].genes.begin(), population[i].genes.end() - 1, g);
+        }
+    }
 }
 
 /// <summary>
@@ -145,6 +152,8 @@ void initPopulation(Individual population[])
 /// <param name="ngrams">Map of char combinations and their frequencies</param>
 void calcFitness(Individual population[], long double* fitnessSum, const string& ciphertext, map<string, long double> ngrams, long double num_unigrams, long double num_bigrams, long double num_trigrams)
 {
+    long double sum = 0;
+#pragma omp parallel for reduction (+: sum)
     for (int idx = 0; idx < POP_SIZE; idx++)
     {
         map<string, long double> cipherNgrams = countNgrams(decipher(ciphertext, population[idx].genes), ngrams, num_unigrams, num_bigrams, num_trigrams);
@@ -160,8 +169,9 @@ void calcFitness(Individual population[], long double* fitnessSum, const string&
         }
 
         population[idx].fitness = (long double)pow((long double)pow(1 - (fitness / 4), 8), 3);
-        *fitnessSum += population[idx].fitness;
+        sum += population[idx].fitness;
     }
+    *fitnessSum = sum;
 }
 
 /// <summary>
@@ -253,7 +263,7 @@ void crossover(Individual population[])
             }
         }
         population[i].genes = child1;
-        population[i+1].genes = child2;
+        population[i + 1].genes = child2;
     }
 }
 
@@ -261,7 +271,7 @@ void crossover(Individual population[])
 /// Swap 2 chars randomly.
 /// </summary>
 /// <param name="genes">Text to swap chars from</param>
-void randomSwap(string genes)
+void randomSwap(string &genes)
 {
     unsigned short gene1 = rand() % ALPH_SIZE;
     unsigned short gene2 = rand() % ALPH_SIZE;
@@ -309,12 +319,12 @@ void printStats(Individual population[], long double* fitnessSum, const string& 
     string::size_type i;
     for (i = 0; i < deciphered.length(); i++)
         if (deciphered[i] == plaintext[i])
-            bestAccuracy ++;
+            bestAccuracy++;
     bestAccuracy /= deciphered.length();
     cout << "Best accuracy:\t\t" << bestAccuracy << "\n";
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     // Initialization
     int gen = 0;
@@ -323,25 +333,31 @@ int main()
     map<string, long double> ngrams;
     long double num_unigrams, num_bigrams, num_trigrams;
 
-    double start_time, end_time;
-    double total_time = 0.0;
-
     // Reading input from files
     ifstream plaintextFile("../../plaintext.txt"); // Target text
     stringstream plaintextBuffer;
     plaintextBuffer << plaintextFile.rdbuf();
     string plaintext = plaintextBuffer.str();
-    plaintext.erase(std::remove_if(plaintext.begin(), plaintext.end(), [](const unsigned& c) { return !isspace(c) && !isalpha(c); }), plaintext.end());
+    plaintext.erase(remove_if(plaintext.begin(), plaintext.end(), [](const unsigned& c) { return !isspace(c) && !isalpha(c); }), plaintext.end());
     plaintextFile.close();
     ifstream ciphertextFile("../../ciphertext.txt"); // Text to be deciphered
     stringstream ciphertextBuffer;
     ciphertextBuffer << ciphertextFile.rdbuf();
     string ciphertext = ciphertextBuffer.str();
-    ciphertext.erase(std::remove_if(ciphertext.begin(), ciphertext.end(), [](const unsigned& c) { return !isspace(c) && !isalpha(c); }), ciphertext.end());
+    ciphertext.erase(remove_if(ciphertext.begin(), ciphertext.end(), [](const unsigned& c) { return !isspace(c) && !isalpha(c); }), ciphertext.end());
     ciphertextFile.close();
     num_unigrams = numNgrams(ciphertext, 1);
     num_bigrams = numNgrams(ciphertext, 2);
     num_trigrams = numNgrams(ciphertext, 3);
+
+    // Set number of threads
+    int n_threads = 4;
+    std::cout << "Enter the number of threads: ";
+    std::cin >> n_threads;
+    omp_set_num_threads(n_threads);
+
+    double start_time, end_time;
+    double total_time = 0.0;
 
     if (CUSTOM_FREQ) // Calculating frequencies from sample text file
     {
@@ -398,7 +414,8 @@ int main()
     {
         gen += 1;
         cout << "Generation " << gen << "\n";
-        start_time = clock();
+        
+        start_time = omp_get_wtime();
         long double fitnessSum = 0;
         calcFitness(population, &fitnessSum, ciphertext, ngrams, num_unigrams, num_bigrams, num_trigrams);
         selection(population, &fitnessSum);
@@ -406,15 +423,11 @@ int main()
         mutation(population);
 
         printStats(population, &fitnessSum, ciphertext, plaintext);
-
-        end_time = clock();
-        double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC; // Convert CPU time to seconds
+        end_time = omp_get_wtime();
+        double iteration_time = end_time - start_time;
         total_time += iteration_time;
 
         cout << "Time for iteration " << gen << ": " << iteration_time << " sec.\n";
-
-
-        
     }
     time = clock() - time;
     cout << "Time for " << MAX_GENS << " generations and " << POP_SIZE << " population: " << (float)time / CLOCKS_PER_SEC << " sec.\n";

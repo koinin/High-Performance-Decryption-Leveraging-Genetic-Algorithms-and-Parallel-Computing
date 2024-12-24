@@ -132,8 +132,16 @@ const map<string, long double> countNgrams(const string& text, map<string, long 
 void initPopulation(Individual population[])
 {
 #pragma omp parallel for
-    for (int i = 0; i < POP_SIZE; i++)
-        random_shuffle(begin(population[i].genes), end(population[i].genes) - 1);
+    for (int i = 0; i < POP_SIZE; ++i) {
+        // Create a thread-local random number engine
+        thread_local std::random_device rd;
+        thread_local std::mt19937 g(rd());
+
+        // Shuffle all genes except the last one
+        if (population[i].genes.size() > 1) {
+           std::shuffle(population[i].genes.begin(), population[i].genes.end() - 1, g);
+        }
+    }
 }
 
 /// <summary>
@@ -264,7 +272,7 @@ void crossover(Individual population[])
 /// Swap 2 chars randomly.
 /// </summary>
 /// <param name="genes">Text to swap chars from</param>
-void randomSwap(string genes)
+void randomSwap(string &genes)
 {
     unsigned short gene1 = rand() % ALPH_SIZE;
     unsigned short gene2 = rand() % ALPH_SIZE;
